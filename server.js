@@ -137,10 +137,8 @@ app.get('/get_subscription_count', function (req, res) {
  * Send ヽ(^‥^=ゞ) to everyone!! But only once a minute because lol spam.
  */
 app.get('/push_cats', function (req, res) {
-
+  
   var elapsed = new Date() - previousRequestTime;
-  console.log(previousRequestTime);
-  console.log(elapsed);
   if ((elapsed / 1000) < 5) {
     console.log("throttled");
     res.end('Request throttled. No cat spam!');
