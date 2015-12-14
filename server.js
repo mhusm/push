@@ -3,6 +3,7 @@ var http       = require('http');
 var bodyParser = require("body-parser");
 var Promise    = require('es6-promise').Promise;
 var request    = require("request");
+require('dotenv').load();
 
 // Save the subscriptions since heroku kills free dynos like the ice age.
 var mongodb = require('mongodb');
@@ -19,7 +20,7 @@ var app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.static(__dirname + '/public'));
 app.use('/bower_components',  express.static(__dirname + '/bower_components'));
-app.set('port', process.env.PORT || 3000);
+app.set('port', process.env.PORT || 3001);
 
 var server = http.createServer(app).listen(app.get('port'), function() {
   console.log('Started server on port ' + app.get('port'));
@@ -41,6 +42,7 @@ databasePromise.then(function(db) {
       return subscription.id;
     });
     console.log("Subscriptions loaded from database: " + activeSubscriptionIds.length);
+    console.log(activeSubscriptionIds);
   });
 }).catch(function(err) {
   console.log('DATABASE ERROR:', err, err.stack);
@@ -135,12 +137,16 @@ app.get('/get_subscription_count', function (req, res) {
  * Send ヽ(^‥^=ゞ) to everyone!! But only once a minute because lol spam.
  */
 app.get('/push_cats', function (req, res) {
-  var elapsed = new Date() - previousRequestTime;
 
-  if ((elapsed / 1000) < 60) {
+  var elapsed = new Date() - previousRequestTime;
+  console.log(previousRequestTime);
+  console.log(elapsed);
+  if ((elapsed / 1000) < 5) {
+    console.log("throttled");
     res.end('Request throttled. No cat spam!');
     return;
   }
+  res.end();
 
   var data = {
     "delayWhileIdle":true,
@@ -149,7 +155,7 @@ app.get('/push_cats', function (req, res) {
       'title': 'this is an important cat notification',
       'message': 'click on it. click on the cat.'
     },
-    "registration_ids":activeSubscriptionIds
+    "registration_id  s":activeSubscriptionIds
   };
 
   var dataString =  JSON.stringify(data);

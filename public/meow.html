@@ -49,9 +49,9 @@
       var xhr = new XMLHttpRequest();
       xhr.open('GET', '/push_cats');
       xhr.responseType = 'json';
-      // xhr.onload = function() {
-      //   console.log(xhr.response);
-      // };
+       xhr.onload = function(res) {
+         console.log(res);
+       };
       xhr.onerror = function() {
         console.log("Blerg. Could not send cats.");
       };
