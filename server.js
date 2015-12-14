@@ -155,7 +155,7 @@ app.get('/push_cats', function (req, res) {
       'title': 'this is an important cat notification',
       'message': 'click on it. click on the cat.'
     },
-    "registration_id  s":activeSubscriptionIds
+    "registration_ids":activeSubscriptionIds
   };
 
   var dataString =  JSON.stringify(data);
