@@ -5,6 +5,7 @@ var bodyParser = require("body-parser");
 var request    = require("request");
 var GoogleAuth = require('google-auth-library');
 var oauth2 = new (new GoogleAuth).OAuth2();
+var session = require('express-session')
 require('dotenv').load();
 
 // Save the subscriptions since heroku kills free dynos like the ice age.
@@ -20,6 +21,12 @@ var previousRequestTime = 0;
 // S-s-s-server.
 var app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use(session({
+  secret: 'keyboard cat',
+  cookie: { maxAge: 60000 },
+  resave: false,
+  saveUninitialized: false
+}));
 app.use(express.static(__dirname + '/public'));
 app.use('/bower_components',  express.static(__dirname + '/bower_components'));
 app.set('port', process.env.PORT || 3000);
@@ -113,6 +120,7 @@ app.post('/subscription_change', function (req, res) {
   var id = req.body.id;
   var subscription = activeSubscriptions[id];
   var idtoken = req.body.idtoken;
+  console.log(req.sessionID);
 
   oauth2.verifyIdToken(idtoken, null, function(error, ticket){
     if (enabled == 'true') {
