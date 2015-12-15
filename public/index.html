@@ -13,6 +13,7 @@
     <script src="../bower_components/webcomponentsjs/webcomponents-lite.min.js"></script>
     <link rel="import" href="../bower_components/paper-toggle-button/paper-toggle-button.html">
     <link rel="import" href="../bower_components/platinum-push-messaging/platinum-push-messaging.html">
+      <link rel="import" href="../bower_components/google-signin/google-signin.html">
     <link rel="manifest" href="../manifest.json">
 
   </head>
@@ -57,6 +58,7 @@
 </style>
 
 <body>
+  <google-signin client-id="953775567534-dg7pfqh2cunmvg07h8l8dntc7nrv8152.apps.googleusercontent.com"></google-signin>
   <platinum-push-messaging message-url="../notification-data.json"></platinum-push-messaging>
 
   <div class="container">
@@ -104,7 +106,7 @@
         document.getElementById('supported').hidden = true;
         document.getElementById('use-https').hidden = false;
       }
-    }
+    };
 
     var ppm = document.querySelector('platinum-push-messaging');
     var toggle = document.getElementById('enable-push');
@@ -112,6 +114,7 @@
     var catsOn = document.getElementById('catsOn');
     var catsOff = document.getElementById('catsOff');
     var btn = document.querySelector('.btn');
+    var sign = document.querySelector('google-signin');
 
     var previousSubscriptionId;
 
@@ -161,8 +164,10 @@
       xhr.onerror = function() {
         console.log("Couldn't send subscription to server.");
       };
-      xhr.send('enabled=' + ppm.enabled + '&id=' + previousSubscriptionId);
+      xhr.send('enabled=' + ppm.enabled + '&id=' + previousSubscriptionId
+              + '&idtoken=' +gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse().id_token);
     });
+
 
   </script>
 </body>

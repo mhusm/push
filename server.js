@@ -1,14 +1,16 @@
 var express    = require('express');
 var http       = require('http');
 var bodyParser = require("body-parser");
-var Promise    = require('es6-promise').Promise;
+//var Promise    = require('es6-promise').Promise;
 var request    = require("request");
+var GoogleAuth = require('google-auth-library');
+var oauth2 = new (new GoogleAuth).OAuth2();
 require('dotenv').load();
 
 // Save the subscriptions since heroku kills free dynos like the ice age.
 var mongodb = require('mongodb');
 
-var activeSubscriptionIds = [];
+var activeSubscriptions = {};
 var previousRequestTime = 0;
 
 /**
@@ -20,7 +22,7 @@ var app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.static(__dirname + '/public'));
 app.use('/bower_components',  express.static(__dirname + '/bower_components'));
-app.set('port', process.env.PORT || 3001);
+app.set('port', process.env.PORT || 3000);
 
 var server = http.createServer(app).listen(app.get('port'), function() {
   console.log('Started server on port ' + app.get('port'));
@@ -38,11 +40,12 @@ var databasePromise = new Promise(function(resolve, reject) {
 
 databasePromise.then(function(db) {
   db.collection('subscriptions').find({}).toArray(function(err, result) {
-    activeSubscriptionIds = result.map(function(subscription) {
-      return subscription.id;
-    });
-    console.log("Subscriptions loaded from database: " + activeSubscriptionIds.length);
-    console.log(activeSubscriptionIds);
+    result.reduce(function(previous, current) {
+      previous[current.id] = current;
+      return previous;
+    }, activeSubscriptions);
+    console.log("Subscriptions loaded from database: " + Object.keys(activeSubscriptions).length);
+    console.log(activeSubscriptions);
   });
 }).catch(function(err) {
   console.log('DATABASE ERROR:', err, err.stack);
@@ -108,21 +111,25 @@ app.get('/manifest.json', function (req, res) {
 app.post('/subscription_change', function (req, res) {
   var enabled = req.body.enabled;
   var id = req.body.id;
-  var index = activeSubscriptionIds.indexOf(id);
+  var subscription = activeSubscriptions[id];
+  var idtoken = req.body.idtoken;
 
-  if (enabled == 'true') {
-    if (index == -1) {
+  oauth2.verifyIdToken(idtoken, null, function(error, ticket){
+    if (enabled == 'true') {
+      if (!subscription) {
+        databasePromise.then(function(db) {
+          db.collection('subscriptions').insertOne({id: id, user: ticket.getPayload().sub});
+        });
+        activeSubscriptions[id] = {id: id, user: ticket.getPayload().sub};
+      }
+    } else {
+      activeSubscriptions[id] = null;
       databasePromise.then(function(db) {
-        db.collection('subscriptions').insert([{id: id}]);
+        db.collection('subscriptions').deleteOne({id: id});
       });
-      activeSubscriptionIds.push(id);
     }
-  } else {
-    activeSubscriptionIds.splice(index, 1);
-    databasePromise.then(function(db) {
-      db.collection('subscriptions').remove({id: id});
-    });
-  }
+  });
+
   res.end();
 });
 
@@ -130,7 +137,7 @@ app.post('/subscription_change', function (req, res) {
  * Returns the number of known subscriptions (some could be inactive).
  */
 app.get('/get_subscription_count', function (req, res) {
-  res.json({'subscriptions': activeSubscriptionIds.length});
+  res.json({'subscriptions': Object.keys(activeSubscriptions).length});
 });
 
 /**
@@ -153,7 +160,7 @@ app.get('/push_cats', function (req, res) {
       'title': 'this is an important cat notification',
       'message': 'click on it. click on the cat.'
     },
-    "registration_ids":activeSubscriptionIds
+    "registration_ids":Object.keys(activeSubscriptions)
   };
 
   var dataString =  JSON.stringify(data);
@@ -197,6 +204,7 @@ app.get('/push_cats', function (req, res) {
 var gracefulShutdown = function() {
   console.log("Received kill signal, shutting down gracefully.");
   databasePromise.then(function(db) {
+    console.log("closing db");
     db.close();
   }).then(function() {
     server.close(function() {
@@ -204,7 +212,7 @@ var gracefulShutdown = function() {
       process.exit()
     });
   });
-}
+};
 
 // listen for TERM signal .e.g. kill
 process.on ('SIGTERM', gracefulShutdown);

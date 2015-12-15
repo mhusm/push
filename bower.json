@@ -12,7 +12,8 @@
     "bower_components"
   ],
   "dependencies": {
-    "polymer": "Polymer/polymer#^1.0.0"
+    "polymer": "Polymer/polymer#^1.0.0",
+    "google-signin": "GoogleWebComponents/google-signin#~1.2.0"
   },
   "devDependencies": {
     "paper-toggle-button": "PolymerElements/paper-toggle-button#^1.0.0",
