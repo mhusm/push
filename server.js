@@ -5,14 +5,16 @@ var bodyParser = require("body-parser");
 var request    = require("request");
 var GoogleAuth = require('google-auth-library');
 var oauth2 = new (new GoogleAuth).OAuth2();
-var session = require('express-session')
+var Session = require('express-session');
 require('dotenv').load();
 
 // Save the subscriptions since heroku kills free dynos like the ice age.
 var mongodb = require('mongodb');
 
-var activeSubscriptions = {};
+var activeSubscriptions = new Map();
 var previousRequestTime = 0;
+var users = {}; // should be cleaned up over time. will just fill up at the moment
+var sessionStore = new Session.MemoryStore();
 
 /**
  * Setup
@@ -21,11 +23,12 @@ var previousRequestTime = 0;
 // S-s-s-server.
 var app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
-app.use(session({
+app.use(Session({
   secret: 'keyboard cat',
-  cookie: { maxAge: 60000 },
+  cookie: { maxAge: 600000, secure: false },
   resave: false,
-  saveUninitialized: false
+  store: sessionStore,
+  saveUninitialized: true
 }));
 app.use(express.static(__dirname + '/public'));
 app.use('/bower_components',  express.static(__dirname + '/bower_components'));
@@ -47,12 +50,11 @@ var databasePromise = new Promise(function(resolve, reject) {
 
 databasePromise.then(function(db) {
   db.collection('subscriptions').find({}).toArray(function(err, result) {
-    result.reduce(function(previous, current) {
-      previous[current.id] = current;
-      return previous;
-    }, activeSubscriptions);
-    console.log("Subscriptions loaded from database: " + Object.keys(activeSubscriptions).length);
-    console.log(activeSubscriptions);
+    console.log(result);
+    result.forEach(function(elem){
+      activeSubscriptions.set(elem.id, elem.user);
+    });
+    console.log("Subscriptions loaded from database: " +activeSubscriptions.size);
   });
 }).catch(function(err) {
   console.log('DATABASE ERROR:', err, err.stack);
@@ -118,20 +120,21 @@ app.get('/manifest.json', function (req, res) {
 app.post('/subscription_change', function (req, res) {
   var enabled = req.body.enabled;
   var id = req.body.id;
-  var subscription = activeSubscriptions[id];
+  var subscription = activeSubscriptions.get(id);
   var idtoken = req.body.idtoken;
-  console.log(req.sessionID);
 
   oauth2.verifyIdToken(idtoken, null, function(error, ticket){
     if (enabled == 'true') {
       if (!subscription) {
+        var sub = ticket.getPayload().sub;
         databasePromise.then(function(db) {
-          db.collection('subscriptions').insertOne({id: id, user: ticket.getPayload().sub});
+          db.collection('subscriptions').insertOne({id: id, user: sub});
         });
-        activeSubscriptions[id] = {id: id, user: ticket.getPayload().sub};
+        activeSubscriptions.set(id,  sub);
+        users[req.sessionID] =  sub;
       }
     } else {
-      activeSubscriptions[id] = null;
+      activeSubscriptions.delete(id);
       databasePromise.then(function(db) {
         db.collection('subscriptions').deleteOne({id: id});
       });
@@ -145,14 +148,15 @@ app.post('/subscription_change', function (req, res) {
  * Returns the number of known subscriptions (some could be inactive).
  */
 app.get('/get_subscription_count', function (req, res) {
-  res.json({'subscriptions': Object.keys(activeSubscriptions).length});
+  res.json({'subscriptions': activeSubscriptions.size});
 });
 
 /**
  * Send ヽ(^‥^=ゞ) to everyone!! But only once a minute because lol spam.
  */
 app.get('/push_cats', function (req, res) {
-  
+  var user = users[req.session.id];
+
   var elapsed = new Date() - previousRequestTime;
   if ((elapsed / 1000) < 5) {
     console.log("throttled");
@@ -161,6 +165,14 @@ app.get('/push_cats', function (req, res) {
   }
   res.end();
 
+  var reg_ids = [];
+  console.log(activeSubscriptions);
+  activeSubscriptions.forEach(function(u, id){
+    if (user == u) {
+      reg_ids.push(id);
+    }
+  });
+
   var data = {
     "delayWhileIdle":true,
     "timeToLive":3,
@@ -168,7 +180,7 @@ app.get('/push_cats', function (req, res) {
       'title': 'this is an important cat notification',
       'message': 'click on it. click on the cat.'
     },
-    "registration_ids":Object.keys(activeSubscriptions)
+    "registration_ids": reg_ids
   };
 
   var dataString =  JSON.stringify(data);
@@ -185,7 +197,7 @@ app.get('/push_cats', function (req, res) {
     headers: headers
   };
 
-  var req = http.request(options, function(res) {
+  var req2 = http.request(options, function(res) {
     res.setEncoding('utf-8');
     var responseString = '';
 
@@ -197,12 +209,12 @@ app.get('/push_cats', function (req, res) {
     });
     console.log('STATUS: ' + res.statusCode);
   });
-  req.on('error', function(e) {
+  req2.on('error', function(e) {
     console.log('error : ' + e.message + e.code);
   });
 
-  req.write(dataString);
-  req.end();
+  req2.write(dataString);
+  req2.end();
   previousRequestTime = new Date();
 });
 
