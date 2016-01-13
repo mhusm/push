@@ -109,3 +109,13 @@ a:hover {
     letter-spacing: .2em;
     padding-right: 6px;
 }
+
+google-signin {
+  position: absolute;
+  right: 1em;
+  top: 1em;
+}
+
+#wrapper {
+  padding: 5em;
+}

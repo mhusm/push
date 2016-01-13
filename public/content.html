@@ -1,0 +1,89 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="images/caticon.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="images/caticon.png" />
+
+    <title>caturday post registration</title>
+
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <link href='https://fonts.googleapis.com/css?family=Lato:300,400,300italic' rel='stylesheet' type='text/css'>
+    <script src="../bower_components/webcomponentsjs/webcomponents-lite.min.js"></script>
+    <link rel="import" href="../bower_components/platinum-push-messaging/platinum-push-messaging.html">
+    <link rel="import" href="../bower_components/google-signin/google-signin.html">
+    <link href="../bower_components/iron-icons/iron-icons.html" rel="import">
+    <link href="../bower_components/paper-icon-button/paper-icon-button.html" rel="import">
+    <link href="../bower_components/paper-toast/paper-toast.html" rel="import">
+  </head>
+
+
+<body>
+  <google-signin client-id="953775567534-dg7pfqh2cunmvg07h8l8dntc7nrv8152.apps.googleusercontent.com"></google-signin>
+  <platinum-push-messaging
+          title="Push Content Received"
+          message="Click to view the content"
+          icon-url="/images/caticon.png"
+          click-url="content.html">
+  </platinum-push-messaging>
+
+
+  <div id="wrapper">
+    <span id="content"></span>
+    <paper-icon-button id="copy" icon="icons:content-copy"></paper-icon-button>
+    <paper-toast id="toast" text="Content copied to clipboard"></paper-toast>
+  </div>
+  <script>
+    var sign = document.querySelector('google-signin');
+    var content = document.getElementById("content");
+
+    function update() {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/get_content');
+      xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded; charset=UTF-8");
+
+      // There's no response in the success case.
+      xhr.onerror = function() {
+        console.log("Couldn't send subscription to server.");
+      };
+
+      xhr.responseType = 'json';
+      xhr.onload = function() {
+        if (xhr.response) {
+          content.innerHTML = xhr.response.content;
+          console.log(xhr.response);
+        }
+      };
+      xhr.send('idtoken=' +gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse().id_token);
+
+    }
+
+    sign.addEventListener("google-signin-success", function(){
+      update();
+    });
+
+    document.getElementById("copy").addEventListener("click", function(){
+      var range = document.createRange();
+      range.selectNode(content);
+      window.getSelection().addRange(range);
+
+      try {
+        // Now that we've selected the anchor text, execute the copy command
+        document.execCommand('copy');
+        document.querySelector('#toast').open();
+      } catch(err) {
+        console.log('Oops, unable to copy');
+      }
+
+      // Remove the selections - NOTE: Should use
+      // removeRange(range) when it is supported
+      window.getSelection().removeAllRanges();
+    });
+
+    document.querySelector("platinum-push-messaging").addEventListener("platinum-push-messaging-click", function(){
+      update();
+    });
+  </script>
+</body>
+</html>

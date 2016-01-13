@@ -12,8 +12,9 @@
     <link href='https://fonts.googleapis.com/css?family=Lato:300,400,300italic' rel='stylesheet' type='text/css'>
     <script src="../bower_components/webcomponentsjs/webcomponents-lite.min.js"></script>
     <link rel="import" href="../bower_components/paper-toggle-button/paper-toggle-button.html">
+    <link rel="import" href="../bower_components/paper-input/paper-input.html">
     <link rel="import" href="../bower_components/platinum-push-messaging/platinum-push-messaging.html">
-      <link rel="import" href="../bower_components/google-signin/google-signin.html">
+    <link rel="import" href="../bower_components/google-signin/google-signin.html">
     <link rel="manifest" href="../manifest.json">
 
   </head>
@@ -59,8 +60,15 @@
 
 <body>
   <google-signin client-id="953775567534-dg7pfqh2cunmvg07h8l8dntc7nrv8152.apps.googleusercontent.com"></google-signin>
-  <platinum-push-messaging message-url="../notification-data.json"></platinum-push-messaging>
-
+  <!--
+    <platinum-push-messaging message-url="../notification-data.json"></platinum-push-messaging>
+  -->
+  <platinum-push-messaging
+          title="Push Content Received"
+          message="Click to view the content"
+          icon-url="/images/caticon.png"
+          click-url="content.html">
+  </platinum-push-messaging>
   <div class="container">
     <div id="unsupported" hidden>
       <h1>Eeeeeek</h1>
@@ -89,14 +97,20 @@
           </div>
         </span>
 
-        <p>Maybe you want to <a href="meow.html">send</a> cats to everybody else?</p>
     </div>
 
-    <div id="footer">
-        <p>made with <span class="red">❤︎</span> by <a href="https://twitter.com/notwaldorf">monica</a>.
-        find this on <a href="https://github.com/notwaldorf/caturday-post">github</a></p>
-    </div>
+      <paper-input id="content" label="Copy your push content here"></paper-input>
 
+      <button class='push-button' id="pushbutton">🐱</button>
+      <p>There are currently <span id="count" class="in">0</span> registered listeners</p>
+      <br><br>
+      <h1>Did you register for cat notifications?</h1>
+      <p>If not, you need to enable push notifications <a href="index.html">here</a></p>
+
+      <div id="footer">
+          <p>made with <span class="red">❤︎</span> by <a href="https://twitter.com/notwaldorf">monica</a>.
+              find this on <a href="https://github.com/notwaldorf/caturday-post">github</a></p>
+      </div>
   </div>
 
   <script>
@@ -164,10 +178,66 @@
       xhr.onerror = function() {
         console.log("Couldn't send subscription to server.");
       };
-      xhr.send('enabled=' + ppm.enabled + '&id=' + previousSubscriptionId
-              + '&idtoken=' +gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse().id_token);
+      if (!(typeof gapi === "undefined")) {
+          xhr.send('enabled=' + ppm.enabled + '&id=' + previousSubscriptionId
+                  + '&idtoken=' +gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse().id_token);
+      }
     });
 
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/get_subscription_count');
+    xhr.responseType = 'json';
+    xhr.onload = function() {
+      if (xhr.response)
+        document.getElementById('count').textContent = xhr.response.subscriptions;
+    };
+    xhr.onerror = function() {
+      console.log("Blerg. Can't get number of subscriptions :(");
+    };
+    xhr.send();
+
+    document.getElementById('pushbutton').addEventListener('click', function() {
+        console.log("sending cats");
+
+        /*
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/push_cats');
+      xhr.responseType = 'json';
+      xhr.onload = function(res) {
+        console.log(res);
+      };
+      xhr.onerror = function() {
+        console.log("Blerg. Could not send cats.");
+      };
+      xhr.send();*/
+        var content = document.getElementById("content").value;
+        if (content) {
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/push_content');
+            xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded; charset=UTF-8");
+
+            // There's no response in the success case.
+            xhr.onerror = function() {
+                console.log("Couldn't send content.");
+            };
+            xhr.send("content=" +content);
+        }
+
+    });
+
+    document.querySelector('google-signin').addEventListener("google-signin-success", function(){
+        // <3 fetch() <3
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '/subscription_change');
+        xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded; charset=UTF-8");
+
+        // There's no response in the success case.
+        xhr.onerror = function() {
+            console.log("Couldn't send subscription to server.");
+        };
+        xhr.send('enabled=' + ppm.enabled + '&id=' + previousSubscriptionId
+                + '&idtoken=' +gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse().id_token);
+    });
 
   </script>
 </body>

@@ -15,6 +15,7 @@ var activeSubscriptions = new Map();
 var previousRequestTime = 0;
 var users = {}; // should be cleaned up over time. will just fill up at the moment
 var sessionStore = new Session.MemoryStore();
+var contentData = {};
 
 /**
  * Setup
@@ -60,48 +61,18 @@ databasePromise.then(function(db) {
   console.log('DATABASE ERROR:', err, err.stack);
 });
 
-/**
- * This is what <platinum-push-messaging> uses as the notification content,
- * so we should intercept it and do something better with it. Like get it from
- * a giant cat server.
- */
-app.get('/notification-data.json', function (req, res) {
-  // Testing data
-  var titles = ['Halp I am a cat trapped in a push notification',
-                'And now, a haiku:'];
 
-  // From http://www.adoptacatfoundation.org/cat_haikus.htm.
-  // If you want to contribute with a haiku, please send a PR! :)
-  var haikus = [
-      'Is anybody there?\n\nHello?',
-      'The food in my bowl\nIs old, and more to the point\nContains no tuna.',
-      'So you want to play.\nWill I claw at dancing string?\nYour ankle\'s closer.',
-      'There\'s no dignity\nIn being sick: which is why\nI don\'t tell you where.',
-      'Seeking solitude\nI am locked in the closet.\nFor once I need you.',
-      'Tiny can, dumped in plastic bowl\nPresentation, One star;\nService: none.',
-      'Am I in your way?\nYou seem to have it backwards:\nThis pillow\'s taken.',
-      'Your mouth is moving;\nUp and down, emitting noise.\nI\'ve lost interest.',
-      'The dog wags his tail,\nSeeking approval. See mine?\nDifferent message.',
-      'My brain: walnut-sized.\nYours: largest among primates.\nYet, who leaves for work?',
-      'Most problems can be\nIgnored. The more difficult\nOnes can be slept through.',
-      'My affection is conditional.\nDon\'t stand up,\nIt\'s your lap I love.',
-      'Cats can\'t steal the breath\nOf children. But if my tail\'s\nPulled again, I\'ll learn.',
-      'I don\'t mind being\nTeased, any more than you mind\nA skin graft or two.',
-      'So you call this thing\nYour cat carrier. I call\nThese my blades of death.',
-      'Toy mice, dancing yarn\nMeowing sounds.\nI\'m convinced: You\'re an idiot.'
-    ];
+app.post('/get_content', function (req, res) {
+  var idtoken = req.body.idtoken;
+  oauth2.verifyIdToken(idtoken, null, function(error, ticket){
+        var sub = ticket.getPayload().sub;
+    console.log(contentData[sub]);
+    console.log(sub);
+    res.json({'content': contentData[sub]});
 
-  request("http://cats.nanobit.org/url", function(error, response, body) {
-    var index = Math.floor(Math.random() * haikus.length);
-
-    res.json({
-      'title': index == 0 ? titles[0] : titles[1],
-      'message': haikus[index],
-      'url': body,
-      'icon': body,
-      'tag': 'cat-push-notification'
-    });
   });
+
+
 });
 
 /**
@@ -132,6 +103,8 @@ app.post('/subscription_change', function (req, res) {
         });
         activeSubscriptions.set(id,  sub);
         users[req.sessionID] =  sub;
+      } else {
+        users[req.sessionID] =  subscription;
       }
     } else {
       activeSubscriptions.delete(id);
@@ -154,9 +127,11 @@ app.get('/get_subscription_count', function (req, res) {
 /**
  * Send ヽ(^‥^=ゞ) to everyone!! But only once a minute because lol spam.
  */
-app.get('/push_cats', function (req, res) {
+app.post('/push_content', function (req, res) {
   var user = users[req.session.id];
 
+  console.log(req.body.content);
+  contentData[user] = req.body.content;
   var elapsed = new Date() - previousRequestTime;
   if ((elapsed / 1000) < 5) {
     console.log("throttled");
@@ -167,18 +142,20 @@ app.get('/push_cats', function (req, res) {
 
   var reg_ids = [];
   console.log(activeSubscriptions);
+  console.log(user);
   activeSubscriptions.forEach(function(u, id){
     if (user == u) {
       reg_ids.push(id);
     }
   });
 
+  console.log(reg_ids);
   var data = {
     "delayWhileIdle":true,
     "timeToLive":3,
     "data":{
-      'title': 'this is an important cat notification',
-      'message': 'click on it. click on the cat.'
+      'title': req.body.content,
+      'message': 'test'
     },
     "registration_ids": reg_ids
   };
