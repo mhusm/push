@@ -66,6 +66,7 @@
     document.getElementById("copy").addEventListener("click", function(){
       var range = document.createRange();
       range.selectNode(content);
+      window.getSelection().removeAllRanges();
       window.getSelection().addRange(range);
 
       try {

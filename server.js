@@ -26,7 +26,7 @@ var app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(Session({
   secret: 'keyboard cat',
-  cookie: { maxAge: 600000, secure: false },
+  cookie: { maxAge: 60000000, secure: false },
   resave: false,
   store: sessionStore,
   saveUninitialized: true
